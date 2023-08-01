@@ -17,4 +17,4 @@ runs:
       uses: actions/upload-artifact@v3
       with:
         name: D2G_results
-        path: results.zip
+        path: results/
