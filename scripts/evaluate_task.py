@@ -78,6 +78,8 @@ def _evaluate_metric(metric, taskname):
         _print_error_and_exit("No script found to evaluate metric %s" % metric)
     proc = subprocess.run([script, taskname], capture_output=True)
     if proc.returncode != 0:
+        print(proc.stdout)
+        print(proc.stderr)
         _print_error_and_exit("Failed to evaluate metric %s" % metric)
 
     try:
