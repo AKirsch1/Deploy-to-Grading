@@ -3,7 +3,14 @@ description: 'This action will setup and execute the Deploy-to-Grading pipeline.
 runs:
   using: 'composite'
   steps:
-    - run: python3 ${{ github.action_path }}/scripts/deploy_to_grading.py
+    - name: Set up JDK 17
+      uses: actions/setup-java@v3
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: gradle
+    - name: Run Deploy-to-Grading
+      run: python3 ${{ github.action_path }}/scripts/deploy_to_grading.py
       env: 
         D2G_PATH: ${{ github.action_path }}
       shell: bash
