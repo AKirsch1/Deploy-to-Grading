@@ -39,6 +39,7 @@ def _print_error_and_exit(error_msg):
 
 def _load_assignment_config():
     # Step 1 of the Deploy-to-Grading pipeline
+    print("Loading assignment configuration")
     try:
         return conf_loader.load_yaml(ASSIGNMENT_FILE_NAME)
     except (FileNotFoundError, YAMLError) as err:
@@ -46,6 +47,7 @@ def _load_assignment_config():
 
 def _checkout_due_date(due_date):
     # Step 2 of the Deploy-to-Grading pipeline
+    print("Checking out due date")
     script_path = os.path.join(os.environ["D2G_PATH"],
         "scripts/checkout_due_date.sh")
     proc = subprocess.run([script_path, due_date])
@@ -54,6 +56,7 @@ def _checkout_due_date(due_date):
 
 def _load_task_config(taskname):
     # Step 3 of the Deploy-to-Grading pipeline
+    print("Loading task configuration for task %s" % taskname)
     task_config_path = os.path.join(taskname, TASK_FILENAME)
     try:
         return conf_loader.load_yaml(task_config_path, taskname.upper())
@@ -62,6 +65,7 @@ def _load_task_config(taskname):
 
 def _override_repo(taskname, repository, task_configuration):
     # Step 4 of the Deploy-to-Grading pipeline
+    print("Overriding repository for task %s" % taskname)
     script_path = os.path.join(os.environ["D2G_PATH"],
         "scripts/override_repo.py")
     proc = subprocess.run(
@@ -86,6 +90,7 @@ def _get_metric_script_path(metric):
 def _execute_metrics(taskname, metrics):
     # Runs step 5 of the Deploy-to-Grading pipeline for every metric
     for metric in metrics.split(" "):
+        print("Executing metric %s for task %s" % (metric, taskname))
         metric_script = _get_metric_script_path(metric)
         
         proc = subprocess.run(metric_script, cwd=taskname)
@@ -94,6 +99,7 @@ def _execute_metrics(taskname, metrics):
 
 def _evaluate_metrics(taskname, metrics, task_configuration):
     # Step 6 fo the Deploy-to-Grading pipeline
+    print("Evaluating metrics for task" % taskname)
     script_path = os.path.join(os.environ["D2G_PATH"],
         "scripts/evaluate_task.py")
     proc = subprocess.run([script_path, taskname], cwd=taskname, env=dict(os.environ, **task_configuration))
@@ -110,6 +116,7 @@ def _evaluate_task(taskname, repository):
 def _create_artifact(assignment_configuration):
     # Runs a script to collect individual metric results of every task and create
     # an archive containing all results
+    print("Creating artifact")
     script_path = os.path.join(os.environ["D2G_PATH"],
         "scripts/create_artifact.sh")
     proc = subprocess.run([script_path], env=dict(os.environ, **assignment_configuration))
@@ -124,7 +131,6 @@ def _present_results(assignment_configuration):
 
 def _main():
     assignment_conf = _load_assignment_config()
-    print(assignment_conf)
     _checkout_due_date(assignment_conf["ASSIGNMENT_DUE_DATE"])
 
     for task in assignment_conf["ASSIGNMENT_TASKS"].split(" "):
