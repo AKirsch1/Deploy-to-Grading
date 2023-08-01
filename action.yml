@@ -13,3 +13,8 @@ runs:
       env: 
         D2G_PATH: ${{ github.action_path }}
       shell: bash
+    - name: Upload results
+      uses: actions/upload-artifact@v3
+      with:
+        name: D2G_results
+        path: results.zip
