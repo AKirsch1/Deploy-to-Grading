@@ -3,5 +3,5 @@ description: 'This action will setup and execute the Deploy-to-Grading pipeline.
 runs:
   using: 'composite'
   steps:
-    - run: sh ${{ github.action_path }}/scripts/deploy-to-grading
+    - run: ls ${{ github.action_path }} && sh ${{ github.action_path }}/scripts/deploy-to-grading
       shell: bash
