@@ -3,7 +3,7 @@ description: 'This action will setup and execute the Deploy-to-Grading pipeline.
 runs:
   using: 'composite'
   steps:
-    - run: ls ${{ github.action_path }}/scripts && sh ${{ github.action_path }}/scripts/deploy-to-grading.py
+    - run: ls ${{ github.action_path }}/scripts && python3 ${{ github.action_path }}/scripts/deploy-to-grading.py
       env: 
         D2G_PATH: ${{ github.action_path }}
       shell: bash
