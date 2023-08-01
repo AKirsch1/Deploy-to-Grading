@@ -8,7 +8,6 @@ runs:
       with:
         java-version: '17'
         distribution: 'temurin'
-        cache: gradle
     - name: Run Deploy-to-Grading
       run: python3 ${{ github.action_path }}/scripts/deploy_to_grading.py
       env: 
