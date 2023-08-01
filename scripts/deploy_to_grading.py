@@ -99,7 +99,7 @@ def _execute_metrics(taskname, metrics):
 
 def _evaluate_metrics(taskname, metrics, task_configuration):
     # Step 6 fo the Deploy-to-Grading pipeline
-    print("Evaluating metrics for task" % taskname)
+    print("Evaluating metrics for task %s" % taskname)
     script_path = os.path.join(os.environ["D2G_PATH"],
         "scripts/evaluate_task.py")
     proc = subprocess.run([script_path, taskname], cwd=taskname, env=dict(os.environ, **task_configuration))
