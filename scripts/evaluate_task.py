@@ -72,6 +72,7 @@ def _get_script_path(metric):
 def _evaluate_metric(metric, taskname):
     # Execute the evaluation script of the given metric and return its
     # output as yaml.
+    print("Evaluating metric %s for task %s" % (metric, taskname))
     script = _get_script_path(metric)
     if script is None:
         _print_error_and_exit("No script found to evaluate metric %s" % metric)
