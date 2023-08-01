@@ -124,6 +124,7 @@ def _present_results(assignment_configuration):
 
 def _main():
     assignment_conf = _load_assignment_config()
+    print(assignment_conf)
     _checkout_due_date(assignment_conf["ASSIGNMENT_DUE_DATE"])
 
     for task in assignment_conf["ASSIGNMENT_TASKS"].split(" "):
