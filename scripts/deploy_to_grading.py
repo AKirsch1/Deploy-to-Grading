@@ -8,8 +8,8 @@
 # Deploy-to-Grading pipeline.
 # The results of the Deploy-to-Grading can be found in the `results`
 # folder. Additional data is saved in each tasks `build/results` folder.
-# TODO: All data will also be made available in an archive inside the
-# 'results' folder.
+# All results are also made available in an archive inside the 'results'
+# folder in the root directory of the assignment and.
 #
 # usage: deploy_to_grading.py
 #
@@ -68,9 +68,19 @@ def _override_repo(taskname, repository, task_configuration):
     print("Overriding repository for task %s" % taskname)
     script_path = os.path.join(os.environ["D2G_PATH"],
         "scripts/override_repo.py")
-    proc = subprocess.run(
-        [script_path, "-t", taskname, "-r", repository], cwd=taskname,
-        env=task_configuration)
+
+    # Run override_repo.py either for a task or the assignment.yml. It is
+    # executed for the assignment.yml if the taskname is None.
+    proc = None
+    if taskname:
+        proc = subprocess.run(
+            [script_path, "-t", taskname, "-r", repository], cwd=taskname,
+            env=task_configuration)
+    else:
+        proc = subprocess.run([script_path, "-a", "-r", repository])
+
+    # Exit D2G completely on error, as we can't validate the correctness
+    # of the student submission.
     if proc.returncode != 0:
         _print_error_and_exit("Failed to execute override_repo.py")
 
@@ -97,21 +107,24 @@ def _execute_metrics(taskname, metrics):
         if proc.returncode != 0:
             _print_error_and_exit("Failed to execute metric %s" % metric)
 
-def _evaluate_metrics(taskname, metrics, task_configuration):
+def _evaluate_metrics(taskname, metrics, task_configuration, assignment_configuration):
     # Step 6 fo the Deploy-to-Grading pipeline
     print("Evaluating metrics for task %s" % taskname)
     script_path = os.path.join(os.environ["D2G_PATH"],
         "scripts/evaluate_task.py")
-    proc = subprocess.run([script_path, taskname], cwd=taskname, env=dict(os.environ, **task_configuration))
+    proc = subprocess.run([script_path, taskname], cwd=taskname,
+        env=dict(os.environ, **task_configuration, **assignment_configuration))
     if proc.returncode != 0:
         _print_error_and_exit("Failed to execute evaluate_task.py")
 
-def _evaluate_task(taskname, repository):
+def _evaluate_task(taskname, assignment_configuration):
     # Runs step 3 to 6 of the Deploy-to-Grading pipeline
     task_conf = _load_task_config(taskname)
-    _override_repo(taskname, repository, task_conf)
+    _override_repo(taskname,
+        assignment_configuration["ASSIGNMENT_TEMPLATE_REPOSITORY"], task_conf)
     _execute_metrics(taskname, task_conf["%s_METRICS" % taskname.upper()])
-    _evaluate_metrics(taskname, task_conf["%s_METRICS" % taskname.upper()], task_conf)
+    _evaluate_metrics(taskname, task_conf["%s_METRICS" % taskname.upper()],
+        task_conf, assignment_configuration)
 
 def _create_artifact(assignment_configuration):
     # Runs a script to collect individual metric results of every task and create
@@ -127,16 +140,30 @@ def _present_results(assignment_configuration):
     # Step 7 of the Deploy-to-Grading pipeline
     _create_artifact(assignment_configuration)
 
-    # TODO: Add rest of step 7 (result summary and presentation) of pipeline here
+    script_path = os.path.join(os.environ["D2G_PATH"],
+        "scripts/print_results_student.py")
+    proc = subprocess.run([script_path], env=dict(os.environ, **assignment_configuration))
+    if proc.returncode != 0:
+        _print_error_and_exit("Failed to print student results")
+
+def _revert_checkout():
+    # Revert step 2 of the Deploy-to-Grading pipeline
+    script_path = os.path.join(os.environ["D2G_PATH"],
+        "scripts/revert_checkout.sh")
+    subprocess.run([script_path])
 
 def _main():
     assignment_conf = _load_assignment_config()
     _checkout_due_date(assignment_conf["ASSIGNMENT_DUE_DATE"])
+    _override_repo(None,
+        assignment_conf["ASSIGNMENT_TEMPLATE_REPOSITORY"], None)
 
     for task in assignment_conf["ASSIGNMENT_TASKS"].split(" "):
-        _evaluate_task(task, assignment_conf["ASSIGNMENT_TEMPLATE_REPOSITORY"])
+        _evaluate_task(task, assignment_conf)
 
     _present_results(assignment_conf)
+    
+    _revert_checkout()
 
 if __name__ == "__main__":
     _main()

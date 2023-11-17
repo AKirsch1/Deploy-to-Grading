@@ -24,59 +24,71 @@
 # is executed for every task that includes the junit metric.
 #
 
+import metric_utils
 import os
-import sys
-import xml.etree.ElementTree as ET
-import yaml
+import re
 
 RESULT_PATH = "build/results/junit/xml"
-POINTS_PER_TEST_ENV_KEY = "%s_METRICS_JUNIT_POINTS_PER_TEST"
 
-def _print_usage():
-    print("usage: junit_eval.py [taskname(optional)]")
-    print("       Make sure that junit.sh was executed prior to this")
-    print("       script and that the task yaml was loaded successfully.")
-    print("")
-    print("       Params:")
-    print("       taskname    Prefix of the task used for env variables.")
+DEFAULT_POINTS_ENV_KEY = "%s_METRICS_JUNIT_DEFAULT_POINTS"
+OVERALL_POINTS_ENV_KEY = "%s_METRICS_JUNIT_OVERALL_POINTS"
 
-def _get_points_per_test_env_variable(taskname):
-    # Gets the points per test from the environment variables.
-    # If the environment variable is not set, it returns a
-    # default value of 1
-    key = POINTS_PER_TEST_ENV_KEY % taskname.upper()
+USAGE = """usage: junit_eval.py [taskname(optional)]
+       Make sure that junit.sh was executed prior to this
+       script and that the task yaml was loaded successfully.
 
-    if os.environ[key] is None:
-        _print_usage()
-        exit(-1)
+       Params:
+       taskname    Prefix of the task used for env variables.
+"""
 
-    return int(os.environ[key])
+DEFAULT_POINTS_DEFAULT_VALUE = 1
+ROUNDING_DECIMAL_PLACES = 2
 
 def _load_xml_files():
     # Load all xml files in RESULT_PATH.
     data = []
     for _, _, files in os.walk(RESULT_PATH):
         for file in files:
-            data.append(ET.parse(os.path.join(RESULT_PATH, file)))
+            data.append(metric_utils.load_xml_file(
+                os.path.join(RESULT_PATH, file), USAGE))
     return data
 
-def _count_tests(data):
-    # Summarizes the overall number of tests and the number
-    # of failed tests. Returns a tuple (tests, failed_tests).
-    tests = 0
-    failed_tests = 0
+def _get_points_of_test(testname, default_points):
+    # Determines the possible points of a test case based on its name.
+    # It is possible to give tests a custom number of points by
+    # appending "_%POINTS%p" to the name of the test where %POINTS%
+    # is replaced with an integer value.
+    match = re.search(r"_\d+[pP]$", testname)
+    if match:
+        return int(match.group(0)[1:-1])
+    return default_points
+
+def _get_points(data, default_points):
+    # Summarize the number of points for the correct tests and the overall
+    # number of points.
+    points = 0
+    max_points = 0
 
     for testsuite in data:
         root = testsuite.getroot()
-        # Note: Skipped tests are not counted towards either
-        #       of those values.
-        tests = int(root.attrib["tests"])
-        failed_tests = int(root.attrib["failures"]) \
-                     + int(root.attrib["errors"])
+        for testcase in root:
+            if testcase.tag == "testcase":
+                possible_points = _get_points_of_test(testcase.attrib["name"],
+                                                      default_points)
+                if len(testcase) == 0:
+                    points += possible_points
+                max_points += possible_points
     
-    return (tests, failed_tests)
+    return (points, max_points)
 
-def _summarize_mistakes(data, points_per_test):
+def _get_point_multiplier(overall_points, max_points):
+    # Calculate point multiplier for multiplying it with the actual point
+    # values.
+    if overall_points is not None:
+        return overall_points / max_points
+    return 1
+
+def _summarize_mistakes(data, default_points, point_multiplier):
     # Collect all failed test cases and create a summery containing
     # the deduction and a description of the error.
     mistakes = []
@@ -86,40 +98,42 @@ def _summarize_mistakes(data, points_per_test):
             if testcase.tag == "testcase" and len(testcase) > 0:
                 description = "%s::%s: %s" % (root.attrib["name"], \
                     testcase.attrib["name"], testcase[0].attrib["message"])
-                mistakes.append({
-                    "deduction": points_per_test,
-                    "description": description
-                })
+                mistakes.append(metric_utils.create_mistake(
+                    round(
+                        _get_points_of_test(testcase.attrib["name"],
+                            default_points) * point_multiplier,
+                        ROUNDING_DECIMAL_PLACES),
+                    description)
+                )
 
     return mistakes
 
-def _generate_final_results(test_count, mistakes, points_per_test):
-    # Generates a results dictionary as defined in d2g_procedure.md in the
-    # documentation an returns it.
-    results = {
-        "points": (test_count[0]-test_count[1]) * points_per_test,
-        "max_points": test_count[0] * points_per_test,
-        "mistakes": mistakes
-    }
-
-    return results
-
-def _print_results(results):
-    # Prints results to the console as yaml.
-    print(yaml.dump(results), end="")
-
 def _main():
-    taskname = "task"
-    if len(sys.argv) == 2:
-        taskname = sys.argv[1]
+    taskname = metric_utils.get_taskname()
 
+    # Get env variables
+    default_points = DEFAULT_POINTS_DEFAULT_VALUE
+    if metric_utils.has_env_variable(DEFAULT_POINTS_ENV_KEY, taskname):
+        default_points = int(metric_utils.get_env_variable(
+            DEFAULT_POINTS_ENV_KEY, taskname, USAGE))
+    overall_points = None
+    if metric_utils.has_env_variable(OVERALL_POINTS_ENV_KEY, taskname):
+        overall_points = int(metric_utils.get_env_variable(
+            OVERALL_POINTS_ENV_KEY, taskname, USAGE))
+
+    # Load junit results
     data = _load_xml_files()
-    points_per_test = _get_points_per_test_env_variable(taskname)
-    test_count = _count_tests(data)
-    mistakes = _summarize_mistakes(data, points_per_test)
 
-    results = _generate_final_results(test_count, mistakes, points_per_test)
-    _print_results(results)
+    # Evaluate results
+    points, max_points = _get_points(data, default_points)
+    point_multiplier = _get_point_multiplier(overall_points, max_points)
+    mistakes = _summarize_mistakes(data, default_points, point_multiplier)
+
+    # Create and print yaml
+    results = metric_utils.generate_final_results(
+        mistakes, round(points*point_multiplier, ROUNDING_DECIMAL_PLACES),
+        int(max_points*point_multiplier))
+    metric_utils.print_results(results)
 
 if __name__ == "__main__":
     _main()
