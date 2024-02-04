@@ -84,9 +84,9 @@ def _get_points(data, default_points):
 def _get_point_multiplier(overall_points, max_points):
     # Calculate point multiplier for multiplying it with the actual point
     # values.
-    if overall_points is not None:
-        return overall_points / max_points
-    return 1
+    if max_points == 0 or overall_points is None:
+        return 1
+    return overall_points / max_points
 
 def _summarize_mistakes(data, default_points, point_multiplier):
     # Collect all failed test cases and create a summery containing
@@ -128,6 +128,15 @@ def _main():
     points, max_points = _get_points(data, default_points)
     point_multiplier = _get_point_multiplier(overall_points, max_points)
     mistakes = _summarize_mistakes(data, default_points, point_multiplier)
+
+    # Add information when the metric was not executed succesfully.
+    if max_points == 0:
+        mistakes = [
+            metric_utils.create_mistake(88, # Actual points don't matter here.
+                "Die JUnit-Metrik konnte nicht ausgeführt werden.\n\t"
+                + "Die angegebene Maximalpunktzahl ist daher ungültig. "
+                + "Bitte stellen Sie sicher, dass die Unittests kompilieren.")
+        ]
 
     # Create and print yaml
     results = metric_utils.generate_final_results(

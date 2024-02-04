@@ -72,8 +72,9 @@ def _get_errors(data):
         rel_file_path = _get_relative_file_path(file.attrib["name"])
         for error in file:
             errors.append({
-                "source": "%s Ln %s, Col %s" % (rel_file_path,
-                    error.attrib["line"], error.attrib["column"]),
+                "source": "%s Ln %s %s" % (rel_file_path,
+                    error.attrib["line"],", Col %s" % error.attrib["column"] \
+                        if "column" in error.attrib else None),
                 "message": error.attrib["message"],
                 "type": _get_error_type(error.attrib["source"])
             })
@@ -125,7 +126,7 @@ def _main():
     max_points = int(metric_utils.get_env_variable(
         MAX_POINTS_ENV_KEY, taskname, USAGE))
     group_errors = True if metric_utils.get_env_variable(
-        GROUP_ERRORS_ENV_KEY, taskname, USAGE) == "true" else False
+        GROUP_ERRORS_ENV_KEY, taskname, USAGE).lower() == "true" else False
     deduction_per_error = int(metric_utils.get_env_variable(
         DEDUCTION_PER_ERROR_ENV_KEY, taskname, USAGE))
 
